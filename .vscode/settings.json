@@ -1,0 +1,7 @@
+{
+    "files.associations": {
+        "stb_image.h": "c",
+        "stb_image_write.h": "c"
+    },
+    "C_Cpp.errorSquiggles": "disabled"
+}
