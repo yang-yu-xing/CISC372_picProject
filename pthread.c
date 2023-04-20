@@ -4,6 +4,7 @@
 #include <string.h>
 #include <pthread.h>
 #include "pthread.h"
+#define nThreads 10
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
@@ -13,7 +14,7 @@
 
 //An array of kernel matrices to be used for image convolution.  
 //The indexes of these match the enumeration from the header file. ie. algorithms[BLUR] returns the kernel corresponding to a box blur.
-Matrix algorithms[]={
+Matrix algorithm[]={
     {{0,-1,0},{-1,4,-1},{0,-1,0}},
     {{0,-1,0},{-1,5,-1},{0,-1,0}},
     {{1/9.0,1/9.0,1/9.0},{1/9.0,1/9.0,1/9.0},{1/9.0,1/9.0,1/9.0}},
@@ -63,14 +64,16 @@ void *convolute(void* vals){
     Image* srcImage = args -> original;
     Image* destImage = args -> edit;
     long rank2 = args -> rank;
-    int threads = args -> count;
-    int start = (srcImage -> height / threads) * rank2;
-    int end = (srcImage -> height / threads) * (rank2 + 1);
+    int start = (srcImage -> height / nThreads) * rank2;
+    int end = (srcImage -> height / nThreads) * (rank2 + 1) -1;
+    if(rank2 == nThreads){
+        end += (srcImage -> height % nThreads)+1;
+    }
     span=srcImage->bpp*srcImage->bpp;
     for (row = start; row < end; row++){
         for (pix=0;pix<srcImage->width;pix++){
             for (bit=0;bit<srcImage->bpp;bit++){
-                destImage->data[Index(pix,row,srcImage->width,bit,srcImage->bpp)]=getPixelValue(srcImage,pix,row,bit,algorithms[args -> type]);
+                destImage->data[Index(pix,row,srcImage->width,bit,srcImage->bpp)]=getPixelValue(srcImage,pix,row,bit,algorithm[args -> type]);
             }
         }
     }
@@ -100,7 +103,6 @@ enum KernelTypes GetKernelType(char* type){
 //argv is expected to take 2 arguments.  First is the source file name (can be jpg, png, bmp, tga).  Second is the lower case name of the algorithm.
 int main(int argc,char** argv){
     long t1,t2;
-    int num_threads;
     t1=time(NULL);
 
     stbi_set_flip_vertically_on_load(0); 
@@ -123,21 +125,21 @@ int main(int argc,char** argv){
     destImage.data=malloc(sizeof(uint8_t)*destImage.width*destImage.bpp*destImage.height);
     
     pthread_t* handles;
-    handles = (pthread_t*)malloc(num_threads * sizeof(pthread_t));
-    for(long thread = 0; thread < num_threads; thread++) {
+    handles = (pthread_t*)malloc(nThreads * sizeof(pthread_t));
+    long thread;
+    for(thread = 0; thread < nThreads; thread++) {
         struct args_struct *args = malloc(sizeof(struct args_struct));
 	    args -> original = &srcImage;
 	    args -> edit = &destImage;
 	    args -> type = type; 
 	    args -> rank = thread;
-	    args -> count = num_threads;
 	    pthread_create(&handles[thread], NULL, convolute, args);
     }
 
     stbi_write_png("output.png",destImage.width,destImage.height,destImage.bpp,destImage.data,destImage.bpp*destImage.width);
     stbi_image_free(srcImage.data);
     
-    for(long thread = 0; thread < num_threads; thread++) {
+    for(thread = 0; thread < nThreads; thread++) {
         pthread_join(handles[thread], NULL);
     }
 

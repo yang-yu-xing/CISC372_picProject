@@ -20,7 +20,6 @@ struct args_struct {
     Image* edit;
     enum KernelTypes type;
     long rank;
-    int count;
 };
 
 uint8_t getPixelValue(Image* srcImage,int x,int y,int bit,Matrix algorithm);
